@@ -63,10 +63,10 @@ const xDerive = (...args) => {
 
   stores.forEach((store, i) => {
     const unsubscribe = store.subscribe((nextStateSlice) => {
-      const nextDerivedState = fn(
+      const derivedState = fn(
         ...stores.map((s, j) => (i === j ? nextStateSlice : s.getState())),
       );
-      setState(nextDerivedState);
+      setState(derivedState);
     });
 
     unsubscribeFns.push(unsubscribe);

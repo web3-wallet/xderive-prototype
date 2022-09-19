@@ -15,30 +15,61 @@ Each store manages a state.
 Store have the following interface
 
 ```typescript
-type SetState<T> = (partial: T | Partial<T> | ((state: T) => T | Partial<T>), replace?: boolean) => void;
+type SetState<T> =
+(partial: T | Partial<T> | ((state: T) => T | Partial<T>), replace?: boolean) => void;
+
+type StateCreator<T> = (s: Store<T>) => T;
+
+type Unsubscribe = () => void;
+
+interface StateDeriveFn {
+  <T, R>(s: T): StateCreator<R>>;
+  <T, T1, R>(s: T, s1: T1): StateCreator<R>;
+  <T, T1, T2, R>(s: T, s1: T1, s2: T2): StateCreator<R>;
+  ...
+}
 
 interface Store<T extends State> {
 	getState: () => T;
-	setState: SetState;
-	subscribe: (state: T, prevState: T) => () => void;
+	setState: SetState<T>;
+	subscribe: (state: T, prevState: T) => Unsubscribe;
 	destroy: () => void;
-  derive<K>: (
-  	state: T,
-  	(store: Store<T>) => (store: Store<K>) => K
-  ) => Store<K>;
-  deriveWith<T1, T2, T3, ... K>: (
-    s1: Store<T1>,
-    s2: Store<T2>,
-    s3: Store<T3>,
-    ...,
-    (s: T, s1: T1, s2: T2, s3: T3, ...) => (store: Store<K>) => K
-	) => Store<K>;
+  derive<R>: (state: T, fn: StateDeriveFn) => Store<R>;
+  deriveWith<T1, T2, ... K>: (
+    s: Store<T>, s1: Store<T1>, s2: Store<T2>, ..., fn: StateDeriveFn
+  ) => Store<R>;
 }
 ```
 
 ## Derived store
 
-A derived store is a store derived from one or more derived or non-derived stores. The API of a derived store is the same as the a non-derived store, with the except that a derived store doesn't expose it's `setState` API to the external world. Instead a derived store only update it's state passively by reacting to the changes of it's upstream stores.
+A derived store is a store derived from one or more derived or non-derived stores. The API of a derived store is the same as the non-derived store with the exception that a derived store doesn't expose it's `setState` API to the external world. Instead a derived store only update it's state passively by reacting to the changes of it's upstream stores.
+
+## Middleware
+
+A middleware is a high order function that takes a `StateCreator` as it's input, and returns a `StateCreator`.
+
+```typescript
+type Middleware<T> = (f: StateCreator<T>) => StateCreator<T>;
+```
+
+**CreateMiddleware**
+
+```typescript
+type CreateMiddleware<O, T> = (options: O) => Middleware<T>;
+```
+
+# Implementation
+
+- [xderive.js](./src//xderive.js)
+
+# Test
+
+- [xderive.spec.js](./src//xderive.spec.js)
+
+```
+npm run test
+```
 
 ## Examples
 
@@ -59,16 +90,16 @@ const distOA = pointA.derive((pA) => () => ({
 }));
 
 pointA.subscribe((p2, p1) => {
-  console.log(`move from ${displayPoint(p1)} to ${displayPoint(p2)}`);
+  console.log(`Move from ${displayPoint(p1)} to ${displayPoint(p2)}`);
 });
 
 distOA.subscribe(({ dist }) => {
-  console.log(`The distance from A to origin is: ${dist}`);
+  console.log(`The distance from origin to pointA is: ${dist}`);
 });
 
 // move from origin to {x: 1, y: 1, z: 1}
 pointA.setState({ x: 1, y: 1, z: 1 });
 
-// move to {x: 1, y: 2, z: 3}
+// move from {x: 1, y: 1, z: 1} to {x: 1, y: 2, z: 3}
 pointA.setState({ y: 2, z: 3 });
 ```
